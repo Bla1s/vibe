@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Vibe</title>
+    <script>
+        function createRoom() {
+            fetch('/api/room', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name: 'New Room' })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    window.location.href = `/room/${data.id}`;
+                });
+        }
+
+        function setUsername() {
+            if (!document.cookie.includes('username')) {
+                const username = 'USER-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+                document.cookie = `username=${username}; path=/`;
+            }
+        }
+
+        window.onload = setUsername;
+    </script>
+</head>
+<body>
+<button onclick="createRoom()">Create new Music Room</button>
+</body>
+</html>

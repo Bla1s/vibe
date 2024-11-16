@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Room</title>
+    <script>
+        function sendCommand() {
+            const roomId = window.location.pathname.split('/').pop();
+            const input = document.getElementById('command').value;
+            const [command, link] = input.split(' ');
+
+            const commandRequest = {
+                command: command,
+                link: link || null
+            };
+
+            fetch(`/api/room/${roomId}/command`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(commandRequest)
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => console.log(data))
+                .catch(error => console.error('Error:', error))
+                .finally(() => {
+                document.getElementById('command').value = '';
+            });
+        }
+    </script>
+</head>
+<body>
+<input type="text" id="command" placeholder="/play LINK, /pause, /skip, /shuffle">
+<button onclick="sendCommand()">Send</button>
+</body>
+</html>
