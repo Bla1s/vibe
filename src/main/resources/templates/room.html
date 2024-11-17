@@ -3,7 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <title>Room</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.5.1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
     <script>
+        let stompClient = null;
+
+        function connectWebSocket() {
+            const socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+            stompClient.connect({}, function (frame) {
+                console.log('Connected: ' + frame);
+                const roomId = window.location.pathname.split('/').pop();
+                stompClient.subscribe(`/topic/room/${roomId}`, function (message) {
+                    const commandResponse = JSON.parse(message.body);
+                    handleCommand(commandResponse.message);
+                });
+            });
+        }
+
         function sendCommand() {
             const roomId = window.location.pathname.split('/').pop();
             const input = document.getElementById('command').value;
@@ -27,16 +44,41 @@
                     }
                     return response.json();
                 })
-                .then(data => console.log(data))
+                .then(data => {
+                    stompClient.send(`/app/room/${roomId}/command`, {}, JSON.stringify(commandRequest));
+                    console.log(data);
+                })
                 .catch(error => console.error('Error:', error))
                 .finally(() => {
-                document.getElementById('command').value = '';
-            });
+                    document.getElementById('command').value = '';
+                });
         }
+
+        function handleCommand(message) {
+            const messageElement = document.getElementById('message');
+            if (message.toLowerCase().startsWith('error')) {
+                messageElement.textContent = message;
+                messageElement.style.color = 'red';
+            } else if (message.toLowerCase().startsWith('playing')) {
+                messageElement.textContent = message;
+                messageElement.style.color = 'green';
+                // Add logic to play the song from the link
+            } else if (message.toLowerCase().startsWith('pausing')) {
+                messageElement.textContent = message;
+                messageElement.style.color = 'green';
+                // Add logic to pause the current song
+            } else {
+                messageElement.textContent = `Unknown message: ${message}`;
+                messageElement.style.color = 'orange';
+            }
+        }
+
+        window.onload = connectWebSocket;
     </script>
 </head>
 <body>
 <input type="text" id="command" placeholder="/play LINK, /pause, /skip, /shuffle">
 <button onclick="sendCommand()">Send</button>
+<p id="message"></p>
 </body>
 </html>
