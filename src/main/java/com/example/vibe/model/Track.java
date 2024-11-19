@@ -11,6 +11,7 @@ public class Track {
     private Long id;
     private String title;
     private String artist;
+    private String url;
     private String source; // "youtube" or "soundcloud"
     private int duration; // in seconds
 
