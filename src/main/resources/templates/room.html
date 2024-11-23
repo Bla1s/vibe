@@ -1,84 +1,137 @@
 <!DOCTYPE html>
-<html lang="en">
+<html xmlns:th="http://www.thymeleaf.org">
 <head>
+    <title>Vibe Room</title>
     <meta charset="UTF-8">
-    <title>Room</title>
-    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.5.1/dist/sockjs.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
-    <script>
-        let stompClient = null;
-
-        function connectWebSocket() {
-            const socket = new SockJS('/ws');
-            stompClient = Stomp.over(socket);
-            stompClient.connect({}, function (frame) {
-                console.log('Connected: ' + frame);
-                const roomId = window.location.pathname.split('/').pop();
-                stompClient.subscribe(`/topic/room/${roomId}`, function (message) {
-                    const commandResponse = JSON.parse(message.body);
-                    handleCommand(commandResponse.message);
-                });
-            });
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f2f5;
         }
-
-        function sendCommand() {
-            const roomId = window.location.pathname.split('/').pop();
-            const input = document.getElementById('command').value;
-            const [command, link] = input.split(' ');
-
-            const commandRequest = {
-                command: command,
-                link: link || null
-            };
-
-            fetch(`/api/room/${roomId}/command`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(commandRequest)
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    stompClient.send(`/app/room/${roomId}/command`, {}, JSON.stringify(commandRequest));
-                    console.log(data);
-                })
-                .catch(error => console.error('Error:', error))
-                .finally(() => {
-                    document.getElementById('command').value = '';
-                });
+        .room-container {
+            max-width: 800px;
+            margin: 0 auto;
         }
-
-        function handleCommand(message) {
-            const messageElement = document.getElementById('message');
-            if (message.toLowerCase().startsWith('error')) {
-                messageElement.textContent = message;
-                messageElement.style.color = 'red';
-            } else if (message.toLowerCase().startsWith('playing')) {
-                messageElement.textContent = message;
-                messageElement.style.color = 'green';
-                // Add logic to play the song from the link
-            } else if (message.toLowerCase().startsWith('pausing')) {
-                messageElement.textContent = message;
-                messageElement.style.color = 'green';
-                // Add logic to pause the current song
-            } else {
-                messageElement.textContent = `Unknown message: ${message}`;
-                messageElement.style.color = 'orange';
-            }
+        .username-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
-
-        window.onload = connectWebSocket;
-    </script>
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .room-info {
+            margin-bottom: 20px;
+        }
+        .player-controls {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .queue-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+        }
+    </style>
 </head>
 <body>
-<input type="text" id="command" placeholder="/play LINK, /pause, /skip, /shuffle">
-<button onclick="sendCommand()">Send</button>
-<p id="message"></p>
+<!-- Username Modal -->
+<div id="usernameModal" class="username-modal">
+    <div class="modal-content">
+        <h2>Enter your username</h2>
+        <input type="text" id="username" placeholder="Username">
+        <button onclick="joinRoom()">Join Room</button>
+    </div>
+</div>
+
+<div class="room-container">
+    <div class="room-info">
+        <h1>Room: <span th:text="${roomId}"></span></h1>
+        <button onclick="copyRoomLink()">Copy Room Link</button>
+    </div>
+
+    <div class="player-controls">
+        <button onclick="togglePlay()">Play/Pause</button>
+        <button onclick="skipSong()">Skip</button>
+    </div>
+
+    <div class="queue-container">
+        <h2>Queue</h2>
+        <ul id="songQueue">
+            <!-- Songs will be added here dynamically -->
+        </ul>
+    </div>
+</div>
+
+<script th:inline="javascript">
+    const roomId = /*[[${roomId}]]*/ '';
+    let stompClient = null;
+
+    function joinRoom() {
+        const username = document.getElementById('username').value;
+        if (!username) {
+            alert('Please enter a username');
+            return;
+        }
+
+        // Connect to WebSocket
+        const socket = new SockJS('/ws-vibe');
+        stompClient = Stomp.over(socket);
+        stompClient.connect({}, function(frame) {
+            // Subscribe to room updates
+            stompClient.subscribe('/topic/room/' + roomId, function(message) {
+                handleRoomUpdate(JSON.parse(message.body));
+            });
+
+            // Send join message
+            stompClient.send("/app/room/" + roomId + "/join", {}, JSON.stringify({
+                username: username
+            }));
+
+            // Hide modal
+            document.getElementById('usernameModal').style.display = 'none';
+        });
+    }
+
+    function copyRoomLink() {
+        const url = window.location.href;
+        navigator.clipboard.writeText(url).then(() => {
+            alert('Room link copied to clipboard!');
+        });
+    }
+
+    function togglePlay() {
+        if (stompClient) {
+            stompClient.send("/app/room/" + roomId + "/toggle", {}, {});
+        }
+    }
+
+    function skipSong() {
+        if (stompClient) {
+            stompClient.send("/app/room/" + roomId + "/skip", {}, {});
+        }
+    }
+
+    function handleRoomUpdate(update) {
+        // Handle room updates (player state, queue changes, etc.)
+        console.log('Room update:', update);
+    }
+</script>
 </body>
 </html>

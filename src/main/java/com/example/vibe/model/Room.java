@@ -1,24 +1,47 @@
 package com.example.vibe.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
-import org.hibernate.annotations.GenericGenerator;
-
+import lombok.NoArgsConstructor;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
-@Data
 @Entity
+@Data
+@NoArgsConstructor
 public class Room {
     @Id
-    @GeneratedValue(generator = "UUID")
-    @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
-    @Column(updatable = false, nullable = false)
     private String id;
-    private String name;
 
-    @OneToMany(mappedBy = "room", cascade = CascadeType.ALL)
-    private List<Track> tracks;
+    @OneToMany(mappedBy = "room", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<User> users = new ArrayList<>();
 
-    @OneToMany(mappedBy = "room", cascade = CascadeType.ALL)
-    private List<AppUser> users;
+    @OneToMany(mappedBy = "room", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<Song> songQueue = new ArrayList<>();
+
+    private boolean isPlaying;
+    private long currentPosition;
+
+    public Room(String id) {
+        this.id = id != null ? id : UUID.randomUUID().toString();
+    }
+
+    public void addUser(User user) {
+        users.add(user);
+        user.setRoom(this);
+    }
+
+    public void removeUser(User user) {
+        users.remove(user);
+        user.setRoom(null);
+    }
+
+    public void addSong(Song song) {
+        songQueue.add(song);
+        song.setRoom(this);
+    }
 }

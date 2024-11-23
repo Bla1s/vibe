@@ -2,14 +2,19 @@ package com.example.vibe.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
-@Data
 @Entity
-public class AppUser {
+@Data
+@NoArgsConstructor
+public class Song {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String username;
+
+    private String title;
+    private String url;
+    private long duration;
 
     @ManyToOne
     @JoinColumn(name = "room_id")

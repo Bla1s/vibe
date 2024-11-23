@@ -1,34 +1,43 @@
 <!DOCTYPE html>
-<html lang="en">
+<html xmlns:th="http://www.thymeleaf.org">
 <head>
+    <title>Vibe - Listen Together</title>
     <meta charset="UTF-8">
-    <title>Vibe</title>
-    <script>
-        function createRoom() {
-            fetch('/api/room', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ name: 'New Room' })
-            })
-                .then(response => response.json())
-                .then(data => {
-                    window.location.href = `/room/${data.id}`;
-                });
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
         }
-
-        function setUsername() {
-            if (!document.cookie.includes('username')) {
-                const username = 'USER-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-                document.cookie = `username=${username}; path=/`;
-            }
+        .container {
+            text-align: center;
         }
-
-        window.onload = setUsername;
-    </script>
+        .create-room-btn {
+            padding: 15px 30px;
+            font-size: 18px;
+            background-color: #1db954;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .create-room-btn:hover {
+            background-color: #1ed760;
+        }
+    </style>
 </head>
 <body>
-<button onclick="createRoom()">Create new Music Room</button>
+<div class="container">
+    <h1>Vibe</h1>
+    <form th:action="@{/create-room}" method="post">
+        <button type="submit" class="create-room-btn">Create New Room</button>
+    </form>
+</div>
 </body>
 </html>
