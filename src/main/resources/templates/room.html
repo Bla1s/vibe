@@ -69,6 +69,11 @@
     <div class="player-controls">
         <button onclick="togglePlay()">Play/Pause</button>
         <button onclick="skipSong()">Skip</button>
+        <div>
+            <input type="text" id="songUrl" placeholder="Enter song URL" />
+            <button onclick="addSong()">Add Song</button>
+            <div id="errorMessage" style="color: red;"></div>
+        </div>
     </div>
 
     <div class="queue-container">
@@ -127,10 +132,32 @@
             stompClient.send("/app/room/" + roomId + "/skip", {}, {});
         }
     }
+    function addSong(){
+        const songUrl = document.getElementById("songUrl").value;
 
-    function handleRoomUpdate(update) {
+        if (stompClient) {
+            stompClient.send("/app/room/" + roomId + "/addSong", {}, songUrl);
+        }
+    }
+
+    function handleRoomUpdate(response) {
         // Handle room updates (player state, queue changes, etc.)
-        console.log('Room update:', update);
+        if (response.error) {
+            document.getElementById("errorMessage").innerText = response.error;
+        } else {
+            // Update the song queue
+            const songQueueElement = document.getElementById("songQueue");
+            songQueueElement.innerHTML = ''; // Clear the current queue
+
+            if (response.songQueue) {
+                response.songQueue.forEach(song => {
+                    const li = document.createElement("li");
+                    li.textContent = song.title; // Assuming the Song object has a title property
+                    songQueueElement.appendChild(li);
+                });
+            }
+        }
+        console.log('Room update:', response);
     }
 </script>
 </body>

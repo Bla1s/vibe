@@ -1,11 +1,14 @@
 package com.example.vibe.controller;
 
 import com.example.vibe.model.Room;
+import com.example.vibe.model.Song;
 import com.example.vibe.model.User;
 import com.example.vibe.service.RoomService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.MessagingException;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.stereotype.Controller;
@@ -39,5 +42,16 @@ public class WebSocketController {
     @SendTo("/topic/room/{roomId}")
     public Room skipSong(@DestinationVariable String roomId) {
         return roomService.skipSong(roomId);
+    }
+
+    @MessageMapping("/room/{roomId}/addSong")
+    @SendTo("/topic/room/{roomId}")
+    public Room addSong(@DestinationVariable String roomId, @Payload String songUrl) {
+        try {
+            return roomService.addSong(roomId, songUrl);
+        } catch (IllegalArgumentException e) {
+            // Send an error message to the client
+            throw new MessagingException("Invalid song URL");
+        }
     }
 }
