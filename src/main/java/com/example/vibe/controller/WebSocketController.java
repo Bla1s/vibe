@@ -37,11 +37,10 @@ public class WebSocketController {
     public Room togglePlayback(@DestinationVariable String roomId) {
         return roomService.togglePlayback(roomId);
     }
-
-    @MessageMapping("/room/{roomId}/skip")
+    @MessageMapping("/room/{roomId}/next")
     @SendTo("/topic/room/{roomId}")
-    public Room skipSong(@DestinationVariable String roomId) {
-        return roomService.skipSong(roomId);
+    public Room playNextSong(@DestinationVariable String roomId) {
+        return roomService.playNextSong(roomId);
     }
 
     @MessageMapping("/room/{roomId}/addSong")
@@ -54,4 +53,10 @@ public class WebSocketController {
             throw new MessagingException("Invalid song URL");
         }
     }
+    @MessageMapping("/room/{roomId}/state")
+    @SendTo("/topic/room/{roomId}")
+    public Room getRoomState(@DestinationVariable String roomId) {
+        return roomService.getRoomState(roomId);
+    }
+
 }

@@ -1,17 +1,18 @@
 package com.example.vibe.service;
 
-import com.example.vibe.controller.LinkValidator;
+import com.example.vibe.util.LinkValidator;
 import com.example.vibe.model.Room;
 import com.example.vibe.model.Song;
 import com.example.vibe.model.User;
 import com.example.vibe.repository.RoomRepository;
-import com.example.vibe.util.LinkParser;
+import com.example.vibe.util.YTDLPService;
 import org.hibernate.Hibernate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -20,7 +21,8 @@ public class RoomService {
     @Autowired
     private RoomRepository roomRepository;
 
-    private LinkValidator linkValidator;
+    @Autowired
+    private YTDLPService ytdlpService;
 
     public String createRoom() {
         String roomId = UUID.randomUUID().toString();
@@ -59,14 +61,15 @@ public class RoomService {
         room.setPlaying(!room.isPlaying());
         return roomRepository.save(room);
     }
-    @Transactional
-    public Room skipSong(String roomId) {
+    public Room playNextSong(String roomId) {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found"));
 
         if (!room.getSongQueue().isEmpty()) {
-            room.getSongQueue().removeFirst();
+            room.removeCurrentSong();
         }
+
+        room.setPlaying(!room.getSongQueue().isEmpty());
         return roomRepository.save(room);
     }
 
@@ -80,9 +83,40 @@ public class RoomService {
         return roomRepository.save(room);
     }
     private Song validateAndParseSong(String songURL) {
-        if (!LinkValidator.isValidLink(songURL) || !LinkValidator.containsValidContent(songURL)) {
+        if (!LinkValidator.isValidLink(songURL)) {
             throw new IllegalArgumentException("Invalid song URL");
         }
-        return LinkParser.parseYouTubeLink(songURL);
+        Map<String, String> metadata = ytdlpService.fetchVideoMetadata(songURL);
+        if (metadata.isEmpty() || !metadata.containsKey("title")) {
+            throw new IllegalArgumentException("Invalid song URL");
+        }
+
+        Song song = new Song();
+        song.setTitle(metadata.get("title"));
+        song.setUrl(metadata.get("url"));
+        song.setDuration(Long.parseLong(metadata.get("duration")));
+        song.setStreamUrl(ytdlpService.fetchAudioStreamUrl(songURL));
+        return song;
     }
+    public Room getRoomState(String roomId) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("Room not found"));
+
+        if (room.isPlaying() && !room.getSongQueue().isEmpty()) {
+            long now = System.currentTimeMillis();
+            long playbackPosition = now - room.getSongStartTime();
+            room.setCurrentPlayback(playbackPosition);
+        } else {
+            room.setCurrentPlayback(0);
+        }
+
+        // Set the response timestamp
+        long now = System.currentTimeMillis();
+        room.setResponseTimestamp(now);
+
+        return room;
+    }
+
+
+
 }

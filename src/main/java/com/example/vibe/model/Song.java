@@ -15,6 +15,8 @@ public class Song {
 
     private String title;
     private String url;
+    @Column(length = 2048)
+    private String streamUrl;
     private long duration;
 
     @ManyToOne

@@ -24,8 +24,10 @@ public class Room {
     @JsonManagedReference
     private List<Song> songQueue = new ArrayList<>();
 
+    private long songStartTime; // Timestamp when the current song started
+    private long currentPlayback; // Current playback time in milliseconds
+    private long responseTimestamp; // Timestamp of the server response
     private boolean isPlaying;
-    private long currentPosition;
 
     public Room(String id) {
         this.id = id != null ? id : UUID.randomUUID().toString();
@@ -44,5 +46,10 @@ public class Room {
     public void addSong(Song song) {
         songQueue.add(song);
         song.setRoom(this);
+    }
+    public void removeCurrentSong() {
+        if (!songQueue.isEmpty()) {
+            songQueue.removeFirst();
+        }
     }
 }

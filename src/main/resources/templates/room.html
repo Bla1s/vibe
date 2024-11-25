@@ -13,10 +13,12 @@
             padding: 20px;
             background-color: #f0f2f5;
         }
+
         .room-container {
             max-width: 800px;
             margin: 0 auto;
         }
+
         .username-modal {
             position: fixed;
             top: 0;
@@ -28,25 +30,19 @@
             justify-content: center;
             align-items: center;
         }
+
         .modal-content {
             background-color: white;
             padding: 20px;
             border-radius: 10px;
             text-align: center;
         }
-        .room-info {
-            margin-bottom: 20px;
-        }
-        .player-controls {
+
+        .room-info, .player-controls, .queue-container {
             background-color: white;
             padding: 20px;
             border-radius: 10px;
             margin-bottom: 20px;
-        }
-        .queue-container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 10px;
         }
     </style>
 </head>
@@ -67,11 +63,24 @@
     </div>
 
     <div class="player-controls">
-        <button onclick="togglePlay()">Play/Pause</button>
-        <button onclick="skipSong()">Skip</button>
-        <div>
-            <input type="text" id="songUrl" placeholder="Enter song URL" />
-            <button onclick="addSong()">Add Song</button>
+ <!--       <audio id="audioPlayer" controls></audio>-->
+
+        <!-- Option 1: Hide native controls and use custom buttons -->
+        <audio id="audioPlayer" style="display: none;"></audio>
+        <div class="custom-controls">
+            <button onclick="togglePlay()">Play/Pause</button>
+            <button onclick="skipSong()">Skip</button>
+
+            <!-- Add custom volume control -->
+            <input type="range" id="volumeControl"
+                   min="0" max="1" step="0.1"
+                   value="1"
+                   onchange="adjustVolume(this.value)">
+
+            <div class="song-input">
+                <input type="text" id="songUrl" placeholder="Enter song URL">
+                <button onclick="addSong()">Add Song</button>
+            </div>
             <div id="errorMessage" style="color: red;"></div>
         </div>
     </div>
@@ -79,7 +88,7 @@
     <div class="queue-container">
         <h2>Queue</h2>
         <ul id="songQueue">
-            <!-- Songs will be added here dynamically -->
+            <!-- Songs will be added dynamically -->
         </ul>
     </div>
 </div>
@@ -87,7 +96,9 @@
 <script th:inline="javascript">
     const roomId = /*[[${roomId}]]*/ '';
     let stompClient = null;
+    const audioPlayer = document.getElementById('audioPlayer');
 
+    // Join room and connect to WebSocket
     function joinRoom() {
         const username = document.getElementById('username').value;
         if (!username) {
@@ -95,70 +106,102 @@
             return;
         }
 
-        // Connect to WebSocket
         const socket = new SockJS('/ws-vibe');
         stompClient = Stomp.over(socket);
-        stompClient.connect({}, function(frame) {
+        stompClient.connect({}, () => {
             // Subscribe to room updates
-            stompClient.subscribe('/topic/room/' + roomId, function(message) {
-                handleRoomUpdate(JSON.parse(message.body));
-            });
+            stompClient.subscribe(`/topic/room/${roomId}`, (message) => handleRoomUpdate(JSON.parse(message.body)));
 
-            // Send join message
-            stompClient.send("/app/room/" + roomId + "/join", {}, JSON.stringify({
-                username: username
-            }));
+            // Request the current state
+            stompClient.send(`/app/room/${roomId}/state`, {});
 
-            // Hide modal
+            // Notify server of the new user
+            stompClient.send(`/app/room/${roomId}/join`, {}, JSON.stringify({ username }));
+
+            // Hide the modal
             document.getElementById('usernameModal').style.display = 'none';
         });
     }
 
+    // Copy room link
     function copyRoomLink() {
         const url = window.location.href;
-        navigator.clipboard.writeText(url).then(() => {
-            alert('Room link copied to clipboard!');
+        navigator.clipboard.writeText(url).then(() => alert('Room link copied to clipboard!'));
+    }
+
+    // Play or pause the current song
+    function togglePlay() {
+        stompClient.send(`/app/room/${roomId}/toggle`, {});
+    }
+
+    // Skip to the next song
+    function skipSong() {
+        stompClient.send(`/app/room/${roomId}/next`, {});
+    }
+
+    // Add a new song to the queue
+    function addSong() {
+        const songUrl = document.getElementById('songUrl').value;
+        if (!songUrl) {
+            document.getElementById('errorMessage').innerText = 'Please enter a song URL.';
+            return;
+        }
+
+        stompClient.send(`/app/room/${roomId}/addSong`, {}, songUrl);
+        document.getElementById('errorMessage').innerText = ''; // Clear error
+    }
+
+    // Handle room state updates
+    function handleRoomUpdate(room) {
+        updateQueue(room.songQueue);
+
+        const serverTime = room.responseTimestamp;
+        const latency = Date.now() - serverTime; // Estimate network latency
+        const adjustedPlaybackTime = (room.currentPlayback + latency) / 1000; // ms to seconds
+
+        if (room.isPlaying && room.songQueue.length > 0) {
+            playAudio(room.songQueue[0].streamUrl, adjustedPlaybackTime);
+        } else {
+            pauseAudio();
+        }
+    }
+
+    // Update the song queue UI
+    function updateQueue(queue) {
+        const songQueueElement = document.getElementById('songQueue');
+        songQueueElement.innerHTML = '';
+
+        queue.forEach((song) => {
+            const li = document.createElement('li');
+            li.textContent = song.title; // Assuming `title` is a property of the song
+            songQueueElement.appendChild(li);
         });
     }
 
-    function togglePlay() {
-        if (stompClient) {
-            stompClient.send("/app/room/" + roomId + "/toggle", {}, {});
+    // Play audio
+    function playAudio(streamUrl, startTime = 0) {
+        const audioElement = document.getElementById('audioPlayer');
+        if (audioPlayer.src !== streamUrl) {
+            audioPlayer.src = streamUrl;
         }
+        audioPlayer.currentTime = startTime; // Sync playback position
+        audioElement.play().catch((error) => {
+            console.error('Error playing audio:', error);
+            setTimeout(() => {
+                playAudio(streamUrl);
+            }, 3000);
+        });
     }
 
-    function skipSong() {
-        if (stompClient) {
-            stompClient.send("/app/room/" + roomId + "/skip", {}, {});
-        }
-    }
-    function addSong(){
-        const songUrl = document.getElementById("songUrl").value;
-
-        if (stompClient) {
-            stompClient.send("/app/room/" + roomId + "/addSong", {}, songUrl);
-        }
+    // Pause the audio
+    function pauseAudio() {
+        audioPlayer.pause();
     }
 
-    function handleRoomUpdate(response) {
-        // Handle room updates (player state, queue changes, etc.)
-        if (response.error) {
-            document.getElementById("errorMessage").innerText = response.error;
-        } else {
-            // Update the song queue
-            const songQueueElement = document.getElementById("songQueue");
-            songQueueElement.innerHTML = ''; // Clear the current queue
-
-            if (response.songQueue) {
-                response.songQueue.forEach(song => {
-                    const li = document.createElement("li");
-                    li.textContent = song.title; // Assuming the Song object has a title property
-                    songQueueElement.appendChild(li);
-                });
-            }
-        }
-        console.log('Room update:', response);
-    }
+    // Handle song end and notify server to play the next song
+    audioPlayer.addEventListener('ended', () => {
+        stompClient.send(`/app/room/${roomId}/next`, {});
+    });
 </script>
 </body>
 </html>
