@@ -18,7 +18,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws-vibe")
+        registry.addEndpoint("/ws")
+                .setAllowedOriginPatterns("*") // Allow all origins
                 .withSockJS();
     }
 }

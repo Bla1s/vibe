@@ -1,206 +1,270 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
-    <title>Vibe Room</title>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vibe Room</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f0f2f5;
-        }
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 
-        .room-container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .username-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .modal-content {
-            background-color: white;
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-        }
-
-        .room-info, .player-controls, .queue-container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-    </style>
 </head>
-<body>
+<body class="bg-gray-100 min-h-screen flex flex-col">
 <!-- Username Modal -->
-<div id="usernameModal" class="username-modal">
-    <div class="modal-content">
-        <h2>Enter your username</h2>
-        <input type="text" id="username" placeholder="Username">
-        <button onclick="joinRoom()">Join Room</button>
+<div id="usernameModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" style="display: none;">
+    <div class="bg-white p-8 rounded-lg shadow-xl w-96">
+        <h2 class="text-2xl font-bold mb-4 text-center">Enter Your Username</h2>
+        <form id="usernameForm" class="space-y-4">
+            <input
+                    type="text"
+                    id="username"
+                    placeholder="Your Username"
+                    required
+                    class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+            <button
+                    type="submit"
+                    class="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 transition duration-300"
+            >
+                Join Room
+            </button>
+        </form>
     </div>
 </div>
 
-<div class="room-container">
-    <div class="room-info">
-        <h1>Room: <span th:text="${roomId}"></span></h1>
-        <button onclick="copyRoomLink()">Copy Room Link</button>
-    </div>
+<!-- Main Room Container -->
+<div class="container mx-auto px-4 py-8 flex-grow">
+    <div class="bg-white shadow-md rounded-lg overflow-hidden">
+        <!-- Room Header -->
+        <div class="bg-blue-500 text-white p-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold">Room: <span id="roomId" th:text="${roomId}"></span></h1>
+            <button id="copyRoomLink" class="bg-white text-blue-500 px-4 py-2 rounded-md hover:bg-blue-50 transition">
+                Copy Room Link
+            </button>
+        </div>
 
-    <div class="player-controls">
- <!--       <audio id="audioPlayer" controls></audio>-->
+        <!-- Main Content -->
+        <div class="grid md:grid-cols-3 gap-4 p-4">
+            <!-- Current Song & Player Controls -->
+            <div class="bg-gray-100 p-4 rounded-lg">
+                <div id="currentSongInfo" class="mb-4 text-center">
+                    <h3 class="text-xl font-semibold">No Song Playing</h3>
+                    <p id="currentSongDetails" class="text-gray-600"></p>
+                </div>
 
-        <!-- Option 1: Hide native controls and use custom buttons -->
-        <audio id="audioPlayer" style="display: none;"></audio>
-        <div class="custom-controls">
-            <button onclick="togglePlay()">Play/Pause</button>
-            <button onclick="skipSong()">Skip</button>
+                <div class="flex justify-center space-x-4 mb-4">
+                    <button id="prevButton" class="text-gray-700 hover:bg-gray-200 p-2 rounded-full">
+                        <i data-lucide="skip-back" class="w-6 h-6"></i>
+                    </button>
+                    <button id="playPauseButton" class="bg-blue-500 text-white p-3 rounded-full hover:bg-blue-600">
+                        <i data-lucide="play" class="w-6 h-6" id="playPauseIcon"></i>
+                    </button>
+                    <button id="nextButton" class="text-gray-700 hover:bg-gray-200 p-2 rounded-full">
+                        <i data-lucide="skip-forward" class="w-6 h-6"></i>
+                    </button>
+                </div>
 
-            <!-- Add custom volume control -->
-            <input type="range" id="volumeControl"
-                   min="0" max="1" step="0.1"
-                   value="1"
-                   onchange="adjustVolume(this.value)">
-
-            <div class="song-input">
-                <input type="text" id="songUrl" placeholder="Enter song URL">
-                <button onclick="addSong()">Add Song</button>
+                <div class="w-full bg-gray-300 rounded-full h-2.5">
+                    <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
             </div>
-            <div id="errorMessage" style="color: red;"></div>
+
+            <!-- Song Queue -->
+            <div class="bg-gray-100 p-4 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4">Queue</h2>
+                <ul id="songQueue" class="space-y-2 max-h-64 overflow-y-auto">
+                    <!-- Queued songs will be dynamically added here -->
+                </ul>
+            </div>
+
+            <!-- Add Song Section -->
+            <div class="bg-gray-100 p-4 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4">Add Song</h2>
+                <form id="addSongForm" onsubmit="return false;" class="space-y-4">
+                    <input
+                            type="text"
+                            id="songUrl"
+                            placeholder="Paste YouTube/Spotify URL"
+                            class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                    <button
+                            type="submit"
+                            class="w-full bg-green-500 text-white py-2 rounded-md hover:bg-green-600 transition"
+                    >
+                        Add to Queue
+                    </button>
+                </form>
+
+                <div id="errorMessage" class="text-red-500 mt-2 text-center"></div>
+            </div>
+        </div>
+
+        <!-- User List -->
+        <div class="bg-gray-200 p-4">
+            <h3 class="text-lg font-semibold">Users in Room</h3>
+            <ul id="userList" class="flex space-x-2"></ul>
         </div>
     </div>
-
-    <div class="queue-container">
-        <h2>Queue</h2>
-        <ul id="songQueue">
-            <!-- Songs will be added dynamically -->
-        </ul>
-    </div>
 </div>
 
-<script th:inline="javascript">
-    const roomId = /*[[${roomId}]]*/ '';
-    let stompClient = null;
-    const audioPlayer = document.getElementById('audioPlayer');
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Username Modal Logic
+        const usernameModal = document.getElementById('usernameModal');
+        const usernameForm = document.getElementById('usernameForm');
 
-    // Join room and connect to WebSocket
-    function joinRoom() {
-        const username = document.getElementById('username').value;
-        if (!username) {
-            alert('Please enter a username');
-            return;
-        }
+        // Show username modal on page load
+        usernameModal.style.display = 'flex';
 
-        const socket = new SockJS('/ws-vibe');
-        stompClient = Stomp.over(socket);
-        stompClient.connect({}, () => {
-            // Subscribe to room updates
-            stompClient.subscribe(`/topic/room/${roomId}`, (message) => handleRoomUpdate(JSON.parse(message.body)));
-
-            // Request the current state
-            stompClient.send(`/app/room/${roomId}/state`, {});
-
-            // Notify server of the new user
-            stompClient.send(`/app/room/${roomId}/join`, {}, JSON.stringify({ username }));
-
-            // Hide the modal
-            document.getElementById('usernameModal').style.display = 'none';
+        usernameForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            // Here you would typically send the username to the server
+            usernameModal.style.display = 'none';
         });
-    }
 
-    // Copy room link
-    function copyRoomLink() {
-        const url = window.location.href;
-        navigator.clipboard.writeText(url).then(() => alert('Room link copied to clipboard!'));
-    }
-
-    // Play or pause the current song
-    function togglePlay() {
-        stompClient.send(`/app/room/${roomId}/toggle`, {});
-    }
-
-    // Skip to the next song
-    function skipSong() {
-        stompClient.send(`/app/room/${roomId}/next`, {});
-    }
-
-    // Add a new song to the queue
-    function addSong() {
-        const songUrl = document.getElementById('songUrl').value;
-        if (!songUrl) {
-            document.getElementById('errorMessage').innerText = 'Please enter a song URL.';
-            return;
-        }
-
-        stompClient.send(`/app/room/${roomId}/addSong`, {}, songUrl);
-        document.getElementById('errorMessage').innerText = ''; // Clear error
-    }
-
-    // Handle room state updates
-    function handleRoomUpdate(room) {
-        updateQueue(room.songQueue);
-
-        const serverTime = room.responseTimestamp;
-        const latency = Date.now() - serverTime; // Estimate network latency
-        const adjustedPlaybackTime = (room.currentPlayback + latency) / 1000; // ms to seconds
-
-        if (room.isPlaying && room.songQueue.length > 0) {
-            playAudio(room.songQueue[0].streamUrl, adjustedPlaybackTime);
-        } else {
-            pauseAudio();
-        }
-    }
-
-    // Update the song queue UI
-    function updateQueue(queue) {
-        const songQueueElement = document.getElementById('songQueue');
-        songQueueElement.innerHTML = '';
-
-        queue.forEach((song) => {
-            const li = document.createElement('li');
-            li.textContent = song.title; // Assuming `title` is a property of the song
-            songQueueElement.appendChild(li);
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons(); // Initialize Lucide icons
         });
-    }
 
-    // Play audio
-    function playAudio(streamUrl, startTime = 0) {
-        const audioElement = document.getElementById('audioPlayer');
-        if (audioPlayer.src !== streamUrl) {
-            audioPlayer.src = streamUrl;
+
+        // Room Player WebSocket Class
+        class RoomPlayer {
+            constructor(roomId) {
+                this.roomId = roomId;
+                this.audioElement = new Audio();
+                this.socket = this.setupWebSocket();
+                this.setupEventListeners();
+            }
+
+            setupWebSocket() {
+                const socket = new SockJS('/ws');
+                const stompClient = Stomp.over(socket);
+
+                stompClient.connect({}, (frame) => {
+                    console.log('Connected: ' + frame);
+                    stompClient.subscribe(`/topic/room/${this.roomId}`, (message) => {
+                        const room = JSON.parse(message.body);
+                        this.updateRoomState(room);
+                    });
+                    this.requestRoomState();
+                });
+
+                return stompClient;
+            }
+
+            setupEventListeners() {
+                document.getElementById('playPauseButton').addEventListener('click', () => this.togglePlayback());
+                document.getElementById('nextButton').addEventListener('click', () => this.skipSong());
+                document.getElementById('addSongForm').addEventListener('submit', (e) => {
+                    console.log('Form submitted'); // Debug log
+                    e.preventDefault(); // Prevent page reload
+                    const songUrl = document.getElementById('songUrl').value;
+                    if (!songUrl.trim()) {
+                        console.log('No song URL provided'); // Debug log
+                        document.getElementById('errorMessage').textContent = 'Please enter a valid song URL.';
+                        return;
+                    }
+
+                    console.log('Adding song:', songUrl); // Debug log
+                    roomPlayer.addSong(songUrl);
+                });
+
+
+                document.getElementById('copyRoomLink').addEventListener('click', () => this.copyRoomLink());
+            }
+
+            requestRoomState() {
+                this.socket.send(`/app/room/${this.roomId}/state`, {}, '');
+            }
+
+            updateRoomState(room) {
+                this.updateSongQueue(room.songQueue);
+                this.updateUserList(room.users);
+                this.updateCurrentSong(room);
+            }
+
+            updateSongQueue(songs) {
+                const queueElement = document.getElementById('songQueue');
+                queueElement.innerHTML = '';
+                songs.forEach((song, index) => {
+                    const li = document.createElement('li');
+                    li.classList.add('bg-white', 'p-2', 'rounded', 'shadow-sm');
+                    li.innerHTML = `
+                            <div class="flex justify-between items-center">
+                                <span>${song.title}</span>
+                                ${index === 0 ? '<span class="text-green-500">Now Playing</span>' : ''}
+                            </div>
+                        `;
+                    queueElement.appendChild(li);
+                });
+            }
+
+            updateUserList(users) {
+                const userListElement = document.getElementById('userList');
+                userListElement.innerHTML = ''; // Clear existing users
+
+                if (users && users.length > 0) {
+                    users.forEach(user => {
+                        const li = document.createElement('li');
+                        li.classList.add('bg-blue-200', 'px-2', 'py-1', 'rounded');
+                        li.textContent = user.username;
+                        userListElement.appendChild(li);
+                    });
+                }
+            }
+
+            updateCurrentSong(room) {
+                const currentSongInfo = document.getElementById('currentSongInfo');
+                const progressBar = document.getElementById('progressBar');
+                const playPauseIcon = document.getElementById('playPauseIcon');
+
+                if (room.songQueue.length > 0) {
+                    const currentSong = room.songQueue[0];
+                    document.getElementById('currentSongInfo').innerHTML = `
+                            <h3 class="text-xl font-semibold">${currentSong.title}</h3>
+                        `;
+
+                    if (room.isPlaying) {
+                        playPauseIcon.setAttribute('data-lucide', 'pause');
+                    } else {
+                        playPauseIcon.setAttribute('data-lucide', 'play');
+                    }
+                    lucide.createIcons();
+                }
+            }
+
+            togglePlayback() {
+                this.socket.send(`/app/room/${this.roomId}/toggle`, {}, '');
+            }
+
+            skipSong() {
+                this.socket.send(`/app/room/${this.roomId}/next`, {}, '');
+            }
+
+            addSong(songUrl) {
+                const errorMessage = document.getElementById('errorMessage');
+                errorMessage.textContent = '';
+
+                this.socket.send(`/app/room/${this.roomId}/addSong`, {}, songUrl);
+                document.getElementById('songUrl').value = '';
+            }
+
+            copyRoomLink() {
+                const roomId = document.getElementById('roomId').textContent;
+                const roomUrl = `${window.location.origin}/room/${roomId}`;
+
+                navigator.clipboard.writeText(roomUrl).then(() => {
+                    alert('Room link copied to clipboard!');
+                }).catch(err => {
+                    console.error('Failed to copy room link', err);
+                });
+            }
         }
-        audioPlayer.currentTime = startTime; // Sync playback position
-        audioElement.play().catch((error) => {
-            console.error('Error playing audio:', error);
-            setTimeout(() => {
-                playAudio(streamUrl);
-            }, 3000);
-        });
-    }
 
-    // Pause the audio
-    function pauseAudio() {
-        audioPlayer.pause();
-    }
-
-    // Handle song end and notify server to play the next song
-    audioPlayer.addEventListener('ended', () => {
-        stompClient.send(`/app/room/${roomId}/next`, {});
+        // Initialize room player
+        const roomId = document.getElementById('roomId').textContent;
+        const roomPlayer = new RoomPlayer(roomId);
     });
 </script>
 </body>

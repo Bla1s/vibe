@@ -24,32 +24,16 @@ public class Room {
     @JsonManagedReference
     private List<Song> songQueue = new ArrayList<>();
 
-    private long songStartTime; // Timestamp when the current song started
-    private long currentPlayback; // Current playback time in milliseconds
-    private long responseTimestamp; // Timestamp of the server response
+
+    @ManyToOne
+    @JoinColumn(name = "current_song_id")
+    private Song currentSong;
+    private long songStartTime;
+    private long currentPlayback;
     private boolean isPlaying;
 
     public Room(String id) {
         this.id = id != null ? id : UUID.randomUUID().toString();
     }
 
-    public void addUser(User user) {
-        users.add(user);
-        user.setRoom(this);
-    }
-
-    public void removeUser(User user) {
-        users.remove(user);
-        user.setRoom(null);
-    }
-
-    public void addSong(Song song) {
-        songQueue.add(song);
-        song.setRoom(this);
-    }
-    public void removeCurrentSong() {
-        if (!songQueue.isEmpty()) {
-            songQueue.removeFirst();
-        }
-    }
 }

@@ -1,4 +1,4 @@
-package com.example.vibe.util;
+package com.example.vibe.ytdlpservice;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;

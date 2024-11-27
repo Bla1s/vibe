@@ -15,10 +15,16 @@ public class RoomController {
 
     @GetMapping("/room/{roomId}")
     public String room(@PathVariable String roomId, Model model) {
-        if (!roomService.roomExists(roomId)) {
-            return "redirect:/";
+        try {
+            if (!roomService.roomExists(roomId)) {
+                model.addAttribute("errorMessage", "Room not found");
+                return "error/404";
+            }
+            model.addAttribute("roomId", roomId);
+            return "room";
+        } catch (Exception e) {
+            model.addAttribute("errorMessage", "An error occurred while accessing the room");
+            return "error/404";
         }
-        model.addAttribute("roomId", roomId);
-        return "room";
     }
 }
